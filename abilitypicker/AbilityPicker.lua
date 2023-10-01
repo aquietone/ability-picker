@@ -19,15 +19,15 @@
 
     When an ability is selected, AbilityPicker.Selected will contain the following values:
     - Type = 'Spell'
-        - Name, RankName, Level
+        - ID, Name, RankName, Level
     - Type = 'Disc'
-        - Name, RankName, Level
+        - ID, Name, RankName, Level
     - Type = 'AA'
-        - Name
+        - ID, Name
     - Type = 'Item'
-        - Name, SpellName
+        - ID, Name, SpellName
     - Type = 'Ability'
-        - Name
+        - ID, Name
 ]]
 
 ---@type Mq
@@ -44,6 +44,8 @@ local AbilityPicker = {
     Abilities = {},
     Items = {},
     Selected = nil,
+    Filter = '',
+    FilteredResults = {}
 }
 
 local aaTypes = {'General','Archtype','Class','Special'}
@@ -75,7 +77,7 @@ local function AddSpellToMap(spell)
         table.insert(AbilityPicker.Spells[category].SubCategories, subCategory)
     end
     local name = spell.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.Spells[category][subCategory], {Level=spell.Level(), Name=name, RankName=spell.Name()})
+    table.insert(AbilityPicker.Spells[category][subCategory], {ID=spell.ID(), Level=spell.Level(), Name=name, RankName=spell.Name(), TargetType=spell.TargetType()})
 end
 
 local function InitSpellTree()
@@ -95,7 +97,7 @@ local function AddAAToMap(aa)
         AbilityPicker.AltAbilities[type] = {}
         table.insert(AbilityPicker.AltAbilities.Types, type)
     end
-    table.insert(AbilityPicker.AltAbilities[type], {Name=aa.Name()})
+    table.insert(AbilityPicker.AltAbilities[type], {ID=aa.ID(), Name=aa.Name(), TargetType=aa.Spell.TargetType()})
 end
 
 local function InitAATree()
@@ -137,7 +139,7 @@ local function AddDiscToMap(disc)
         table.insert(AbilityPicker.CombatAbilities[category].SubCategories, subCategory)
     end
     local name = disc.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.CombatAbilities[category][subCategory], {Level=disc.Level(), Name=name, RankName=disc.Name()})
+    table.insert(AbilityPicker.CombatAbilities[category][subCategory], {ID=disc.ID(), Level=disc.Level(), Name=name, RankName=disc.Name(), TargetType=disc.TargetType()})
 end
 
 local function InitDiscTree()
@@ -156,10 +158,10 @@ local function InitAbilityTree()
     for i=0,100 do
         local ability = mq.TLO.Me.Ability(i)
         if ability() then
-            table.insert(AbilityPicker.Abilities, ability())
+            table.insert(AbilityPicker.Abilities, {ID=i, Name=ability()})
         end
     end
-    table.sort(AbilityPicker.Abilities)
+    table.sort(AbilityPicker.Abilities, function(a, b) return a.Name < b.Name end)
 end
 
 local function InitItems()
@@ -169,12 +171,12 @@ local function InitItems()
             for j=1,item.Container() do
                 local bagItem = item.Item(j)
                 if bagItem() and bagItem.Spell() then
-                    table.insert(AbilityPicker.Items, {Name=bagItem.Name(), SpellName=bagItem.Clicky()})
+                    table.insert(AbilityPicker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType()})
                 end
             end
         else
             if item() and item.Clicky() then
-                table.insert(AbilityPicker.Items, {Name=item.Name(), SpellName=item.Clicky()})
+                table.insert(AbilityPicker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType()})
             end
         end
     end
@@ -193,19 +195,117 @@ local function SelectAbility(type, name, rankName, level)
     AbilityPicker.Selected = {Type=type, Name=name, RankName=rankName, Level=level}
     AbilityPicker.Open = false
     AbilityPicker.Draw = false
+    AbilityPicker.Filter = ''
+    AbilityPicker.FilteredResults = {}
 end
 
-local function DrawCatSubCatTree(table, type)
-    for _,category in ipairs(table.Categories) do
+local function ResetFilter()
+    AbilityPicker.FilteredResults = {}
+end
+
+local function FilterCatSubCatTree(tbl)
+    local filteredAbilities = {Categories={}}
+    for _,category in ipairs(tbl.Categories) do
+        local abilityCategory = tbl[category]
+        for _,subCategory in ipairs(abilityCategory.SubCategories) do
+            local abilitySubCategory = abilityCategory[subCategory]
+            for _,ability in ipairs(abilitySubCategory) do
+                if ability.Name:lower():find(AbilityPicker.Filter:lower()) then
+                    if not filteredAbilities[category] then table.insert(filteredAbilities.Categories, category) end
+                    filteredAbilities[category] = filteredAbilities[category] or {SubCategories={}}
+                    if not filteredAbilities[category][subCategory] then table.insert(filteredAbilities[category].SubCategories, subCategory) end
+                    filteredAbilities[category][subCategory] = filteredAbilities[category][subCategory] or {}
+                    table.insert(filteredAbilities[category][subCategory], ability)
+                end
+            end
+        end
+    end
+    return filteredAbilities
+end
+
+local function FilterSpells()
+    local filteredSpells = FilterCatSubCatTree(AbilityPicker.Spells)
+    AbilityPicker.FilteredResults.Spells = filteredSpells
+end
+
+local function FilterDiscs()
+    local filteredDiscs = FilterCatSubCatTree(AbilityPicker.CombatAbilities)
+    AbilityPicker.FilteredResults.CombatAbilities = filteredDiscs
+end
+
+local function FilterAAs()
+    local filteredAAs = {Types={}}
+    for _,type in ipairs(AbilityPicker.AltAbilities.Types) do
+        for _,altAbility in ipairs(AbilityPicker.AltAbilities[type]) do
+            if altAbility.Name:lower():find(AbilityPicker.Filter:lower()) then
+                if not filteredAAs[type] then table.insert(filteredAAs.Types, type) end
+                filteredAAs[type] = filteredAAs[type] or {}
+                table.insert(filteredAAs[type], altAbility)
+            end
+        end
+    end
+    AbilityPicker.FilteredResults.AltAbilities = filteredAAs
+end
+
+local function FilterAbilities()
+    local filteredAbilities = {}
+    for _,ability in ipairs(AbilityPicker.Abilities) do
+        if ability.Name:lower():find(AbilityPicker.Filter:lower()) then
+            table.insert(filteredAbilities, ability)
+        end
+    end
+    AbilityPicker.FilteredResults.Abilities = filteredAbilities
+end
+
+local function FilterItems()
+    local filteredItems = {}
+    for _,item in ipairs(AbilityPicker.Items) do
+        if item.Name:lower():find(AbilityPicker.Filter:lower()) then
+            table.insert(filteredItems, item)
+        end
+    end
+    AbilityPicker.FilteredResults.Items = filteredItems
+end
+
+-- Color spell names in spell picker similar to the spell bar context menus
+local function SetTextColor(ability)
+    local targetType = ability.TargetType
+    if targetType == 'Single' or targetType == 'Line of Sight' or targetType == 'Undead' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+    elseif targetType == 'Self' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 1, 0, 1)
+    elseif targetType == 'Group v2' or targetType == 'Group v1' or targetType == 'AE PC v2' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 1, 1)
+    elseif targetType == 'Beam' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 1, 1)
+    elseif targetType == 'Targeted AE' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0.5, 0, 1)
+    elseif targetType == 'PB AE' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 0.5, 1, 1)
+    elseif targetType == 'Pet' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+    elseif targetType == 'Pet2' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 0, 0, 1)
+    elseif targetType == 'Free Target' then
+        ImGui.PushStyleColor(ImGuiCol.Text, 0, 1, 0, 1)
+    else
+        ImGui.PushStyleColor(ImGuiCol.Text, 1, 1, 1, 1)
+    end
+end
+
+local function DrawCatSubCatTree(tbl, type)
+    for _,category in ipairs(tbl.Categories) do
         if ImGui.TreeNode(category) then
-            local abilityCategory = table[category]
+            local abilityCategory = tbl[category]
             for _,subCategory in ipairs(abilityCategory.SubCategories) do
                 if ImGui.TreeNode(subCategory) then
                     local abilitySubCategory = abilityCategory[subCategory]
                     for _,ability in ipairs(abilitySubCategory) do
+                        if ability.TargetType then SetTextColor(ability) end
                         if ImGui.Selectable(string.format('%s - %s', ability.Level, ability.Name), false) then
                             SelectAbility(type, ability.Name, ability.RankName, ability.Level)
                         end
+                        if ability.TargetType then ImGui.PopStyleColor() end
                     end
                     ImGui.TreePop()
                 end
@@ -215,21 +315,23 @@ local function DrawCatSubCatTree(table, type)
     end
 end
 
-local function DrawSpellTree()
+local function DrawSpellTree(spells)
     if ImGui.TreeNode('Spells') then
-        DrawCatSubCatTree(AbilityPicker.Spells, 'Spell')
+        DrawCatSubCatTree(spells, 'Spell')
         ImGui.TreePop()
     end
 end
 
-local function DrawAATree()
+local function DrawAATree(altAbilities)
     if ImGui.TreeNode('Alternate Abilities') then
-        for _,type in ipairs(AbilityPicker.AltAbilities.Types) do
+        for _,type in ipairs(altAbilities.Types) do
             if ImGui.TreeNode(type) then
-                for _,altAbility in ipairs(AbilityPicker.AltAbilities[type]) do
+                for _,altAbility in ipairs(altAbilities[type]) do
+                    if altAbility.TargetType then SetTextColor(altAbility) end
                     if ImGui.Selectable(altAbility.Name, false) then
                         SelectAbility('AA', altAbility.Name)
                     end
+                    if altAbility.TargetType then ImGui.PopStyleColor() end
                 end
                 ImGui.TreePop()
             end
@@ -238,32 +340,52 @@ local function DrawAATree()
     end
 end
 
-local function DrawDiscTree()
+local function DrawDiscTree(discs)
     if ImGui.TreeNode('Combat Disciplines') then
-        DrawCatSubCatTree(AbilityPicker.CombatAbilities, 'Disc')
+        DrawCatSubCatTree(discs, 'Disc')
         ImGui.TreePop()
     end
 end
 
-local function DrawItemTree()
+local function DrawItemTree(items)
     if ImGui.TreeNode('Items') then
-        for _,item in ipairs(AbilityPicker.Items) do
+        for _,item in ipairs(items) do
+            if item.TargetType then SetTextColor(item) end
             if ImGui.Selectable(string.format('%s - %s', item.Name, item.SpellName), false) then
                 SelectAbility('Item', item.Name)
             end
+            if item.TargetType then ImGui.PopStyleColor() end
         end
         ImGui.TreePop()
     end
 end
 
-local function DrawAbilityTree()
+local function DrawAbilityTree(abilities)
     if ImGui.TreeNode('Abilities') then
-        for _,ability in ipairs(AbilityPicker.Abilities) do
-            if ImGui.Selectable(ability, false) then
-                SelectAbility('Ability', ability)
+        for _,ability in ipairs(abilities) do
+            if ability.TargetType then SetTextColor(ability) end
+            if ImGui.Selectable(ability.Name, false) then
+                SelectAbility('Ability', ability.Name)
             end
+            if ability.TargetType then ImGui.PopStyleColor() end
         end
         ImGui.TreePop()
+    end
+end
+
+local function DrawSearchFilter()
+    local filter = ImGui.InputTextWithHint('##Filter', 'Search Abilities...', AbilityPicker.Filter)
+    if filter:len() >= 3 and AbilityPicker.Filter ~= filter then
+        AbilityPicker.Filter = filter
+        ResetFilter()
+        FilterSpells()
+        FilterDiscs()
+        FilterAAs()
+        FilterItems()
+        FilterAbilities()
+    else
+        if filter:len() < 3 and AbilityPicker.Filter ~= filter then ResetFilter() end
+        AbilityPicker.Filter = filter
     end
 end
 
@@ -271,15 +393,16 @@ function AbilityPicker.DrawAbilityPicker()
     if not AbilityPicker.Open then return end
     AbilityPicker.Open, AbilityPicker.Draw = ImGui.Begin('Ability Picker', AbilityPicker.Open)
     if AbilityPicker.Draw then
-        DrawSpellTree()
+        DrawSearchFilter()
+        DrawSpellTree(AbilityPicker.FilteredResults.Spells or AbilityPicker.Spells)
         ImGui.Separator()
-        DrawAATree()
+        DrawAATree(AbilityPicker.FilteredResults.AltAbilities or AbilityPicker.AltAbilities)
         ImGui.Separator()
-        DrawDiscTree()
+        DrawDiscTree(AbilityPicker.FilteredResults.CombatAbilities or AbilityPicker.CombatAbilities)
         ImGui.Separator()
-        DrawItemTree()
+        DrawItemTree(AbilityPicker.FilteredResults.Items or AbilityPicker.Items)
         ImGui.Separator()
-        DrawAbilityTree()
+        DrawAbilityTree(AbilityPicker.FilteredResults.Abilities or AbilityPicker.Abilities)
     end
     ImGui.End()
 end
