@@ -48,6 +48,9 @@ local AbilityPicker = {
     FilteredResults = {}
 }
 
+local animSpellIcons = mq.FindTextureAnimation('A_SpellIcons')
+local animItems = mq.FindTextureAnimation('A_DragItem')
+
 local aaTypes = {'General','Archtype','Class','Special'}
 
 local function SortMap(map)
@@ -77,7 +80,7 @@ local function AddSpellToMap(spell)
         table.insert(AbilityPicker.Spells[category].SubCategories, subCategory)
     end
     local name = spell.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.Spells[category][subCategory], {ID=spell.ID(), Level=spell.Level(), Name=name, RankName=spell.Name(), TargetType=spell.TargetType()})
+    table.insert(AbilityPicker.Spells[category][subCategory], {ID=spell.ID(), Level=spell.Level(), Name=name, RankName=spell.Name(), TargetType=spell.TargetType(), Icon=spell.SpellIcon()})
 end
 
 local function InitSpellTree()
@@ -97,7 +100,7 @@ local function AddAAToMap(aa)
         AbilityPicker.AltAbilities[type] = {}
         table.insert(AbilityPicker.AltAbilities.Types, type)
     end
-    table.insert(AbilityPicker.AltAbilities[type], {ID=aa.ID(), Name=aa.Name(), TargetType=aa.Spell.TargetType()})
+    table.insert(AbilityPicker.AltAbilities[type], {ID=aa.ID(), Name=aa.Name(), TargetType=aa.Spell.TargetType(), Icon=aa.Spell.SpellIcon()})
 end
 
 local function InitAATree()
@@ -139,7 +142,7 @@ local function AddDiscToMap(disc)
         table.insert(AbilityPicker.CombatAbilities[category].SubCategories, subCategory)
     end
     local name = disc.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.CombatAbilities[category][subCategory], {ID=disc.ID(), Level=disc.Level(), Name=name, RankName=disc.Name(), TargetType=disc.TargetType()})
+    table.insert(AbilityPicker.CombatAbilities[category][subCategory], {ID=disc.ID(), Level=disc.Level(), Name=name, RankName=disc.Name(), TargetType=disc.TargetType(), Icon=disc.SpellIcon()})
 end
 
 local function InitDiscTree()
@@ -171,12 +174,12 @@ local function InitItems()
             for j=1,item.Container() do
                 local bagItem = item.Item(j)
                 if bagItem() and bagItem.Spell() then
-                    table.insert(AbilityPicker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType()})
+                    table.insert(AbilityPicker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType(), Icon=bagItem.Icon()})
                 end
             end
         else
             if item() and item.Clicky() then
-                table.insert(AbilityPicker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType()})
+                table.insert(AbilityPicker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType(), Icon=item.Icon()})
             end
         end
     end
@@ -191,8 +194,8 @@ function AbilityPicker.InitializeAbilities()
     InitItems()
 end
 
-local function SelectAbility(type, name, rankName, level)
-    AbilityPicker.Selected = {Type=type, Name=name, RankName=rankName, Level=level}
+local function SelectAbility(type, id, name, rankName, level, spellName)
+    AbilityPicker.Selected = {ID=id, Type=type, Name=name, RankName=rankName, Level=level, SpellName=spellName}
     AbilityPicker.Open = false
     AbilityPicker.Draw = false
     AbilityPicker.Filter = ''
@@ -301,9 +304,12 @@ local function DrawCatSubCatTree(tbl, type)
                 if ImGui.TreeNode(subCategory) then
                     local abilitySubCategory = abilityCategory[subCategory]
                     for _,ability in ipairs(abilitySubCategory) do
+                        animSpellIcons:SetTextureCell(ability.Icon)
+                        ImGui.DrawTextureAnimation(animSpellIcons, 20, 20)
+                        ImGui.SameLine()
                         if ability.TargetType then SetTextColor(ability) end
                         if ImGui.Selectable(string.format('%s - %s', ability.Level, ability.Name), false) then
-                            SelectAbility(type, ability.Name, ability.RankName, ability.Level)
+                            SelectAbility(type, ability.ID, ability.Name, ability.RankName, ability.Level)
                         end
                         if ability.TargetType then ImGui.PopStyleColor() end
                     end
@@ -327,9 +333,12 @@ local function DrawAATree(altAbilities)
         for _,type in ipairs(altAbilities.Types) do
             if ImGui.TreeNode(type) then
                 for _,altAbility in ipairs(altAbilities[type]) do
+                    animSpellIcons:SetTextureCell(altAbility.Icon)
+                    ImGui.DrawTextureAnimation(animSpellIcons, 20, 20)
+                    ImGui.SameLine()
                     if altAbility.TargetType then SetTextColor(altAbility) end
                     if ImGui.Selectable(altAbility.Name, false) then
-                        SelectAbility('AA', altAbility.Name)
+                        SelectAbility('AA', altAbility.ID, altAbility.Name)
                     end
                     if altAbility.TargetType then ImGui.PopStyleColor() end
                 end
@@ -350,9 +359,12 @@ end
 local function DrawItemTree(items)
     if ImGui.TreeNode('Items') then
         for _,item in ipairs(items) do
+            animItems:SetTextureCell(item.Icon-500)
+            ImGui.DrawTextureAnimation(animItems, 20, 20)
+            ImGui.SameLine()
             if item.TargetType then SetTextColor(item) end
             if ImGui.Selectable(string.format('%s - %s', item.Name, item.SpellName), false) then
-                SelectAbility('Item', item.Name)
+                SelectAbility('Item', item.ID, item.Name, nil, nil, item.SpellName)
             end
             if item.TargetType then ImGui.PopStyleColor() end
         end
@@ -365,7 +377,7 @@ local function DrawAbilityTree(abilities)
         for _,ability in ipairs(abilities) do
             if ability.TargetType then SetTextColor(ability) end
             if ImGui.Selectable(ability.Name, false) then
-                SelectAbility('Ability', ability.Name)
+                SelectAbility('Ability', ability.ID, ability.Name)
             end
             if ability.TargetType then ImGui.PopStyleColor() end
         end
@@ -392,7 +404,7 @@ end
 
 function AbilityPicker.DrawAbilityPicker()
     if not AbilityPicker.Open then return end
-    AbilityPicker.Open, AbilityPicker.Draw = ImGui.Begin('Ability Picker', AbilityPicker.Open)
+    AbilityPicker.Open, AbilityPicker.Draw = ImGui.Begin('Ability Picker', AbilityPicker.Open, ImGuiWindowFlags.AlwaysAutoResize)
     if AbilityPicker.Draw then
         DrawSearchFilter()
         DrawSpellTree(AbilityPicker.FilteredResults.Spells or AbilityPicker.Spells)

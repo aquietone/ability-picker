@@ -19,11 +19,11 @@ local function updateImGui()
         if AbilityPicker.Selected then
             local selected = AbilityPicker.Selected or {}
             if selected.Type == 'Spell' or selected.Type == 'Disc' then
-                ImGui.Text('Selected %s:\nName=%s\nRankName=%s\nLevel=%s', selected.Type, selected.Name, selected.RankName, selected.Level)
+                ImGui.Text('Selected %s:\nID=%s\nName=%s\nRankName=%s\nLevel=%s', selected.Type, selected.ID, selected.Name, selected.RankName, selected.Level)
             elseif selected.Type == 'Item' then
-                ImGui.Text('Selected %s:\nName=%s\nSpellName=%s', selected.Type, selected.Name, selected.SpellName)
+                ImGui.Text('Selected %s:\nID=%s\nName=%s\nSpellName=%s', selected.Type, selected.ID, selected.Name, selected.SpellName)
             elseif selected.Type == 'AA' or selected.Type == 'Ability' then
-                ImGui.Text('Selected %s:\n%s', selected.Type, selected.Name)
+                ImGui.Text('Selected %s:\nID=%s\n%s', selected.Type, selected.ID, selected.Name)
             end
         end
         if AbilityPicker.Selected and ImGui.Button('Clear Selection') then

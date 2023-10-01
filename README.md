@@ -4,9 +4,8 @@ AbilityPicker is a utility for selecting EverQuest abilities via a UI.
 
 A sample script is provided to demonstrate how it may be used. Copy `abilitypicker` folder to your MQ `lua` folder and `/lua run abilitypicker`.  
 
-![](./images/pickerOpen.png)  
-![](./images/pickerFiltered.png)  
-![](./images/pickerSelected.png)  
+![](./images/pickerOpen.png) ![](./images/pickerFiltered.png)  
+![](./images/pickerFresh.png) ![](./images/pickerSelected.png)  
 
 ## Overview
 
@@ -61,5 +60,5 @@ When `Type` == `'Ability'`
 
 ## TODO
 
-- Add icons or more info about abilities where available
+- Add more info about abilities where available
 - Add support for registering custom categories, for example adding a list of commands like for KA `command:/somecommand` type stuff
