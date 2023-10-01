@@ -1,12 +1,15 @@
 # Ability Picker
 
-AbilityPicker is a utility for selecting EverQuest abilities via a UI.
+AbilityPicker is a utility for selecting EverQuest abilities via a UI.  
 
-A sample script is provided to demonstrate how it may be used. Copy `abilitypicker` folder to your MQ `lua` folder and `/lua run abilitypicker`.
+A sample script is provided to demonstrate how it may be used. Copy `abilitypicker` folder to your MQ `lua` folder and `/lua run abilitypicker`.  
+
+![](./images/pickerOpen.png)  
+![](./images/pickerSelected.png)  
 
 ## Overview
 
-AbilityPicker provides a UI for selecting abilities, such as for configuring what abilities to use in some automation script.
+AbilityPicker provides a UI for selecting abilities, such as for configuring what abilities to use in some automation script.  
 
 ### Usage:
 
@@ -30,25 +33,25 @@ end
 
 When an ability is selected, AbilityPicker.Selected will contain the following values:  
 
-- AbilityPicker.Selected.Type == 'Spell'  
-- AbilityPicker.Selected.Name
-- AbilityPicker.Selected.RankName  
-- AbilityPicker.Selected.Level  
+When `Type` == `'Spell'`
+- Name
+- RankName
+- Level  
 
-- AbilityPicker.Selected.Type == 'Disc'  
-- AbilityPicker.Selected.Name  
-- AbilityPicker.Selected.RankName  
-- AbilityPicker.Selected.Level  
+When `Type` == `'Disc'`
+- Name
+- RankName
+- Level  
 
-- AbilityPicker.Selected.Type == 'AA'  
-- AbilityPicker.Selected.Name  
+When `Type` == `'AA'`
+- Name  
 
-- AbilityPicker.Selected.Type == 'Item'  
-- AbilityPicker.Selected.Name  
-- AbilityPicker.Selected.SpellName  
+When `Type` == `'Item'`
+- Name
+- SpellName  
 
-- AbilityPicker.Selected.Type == 'Ability'  
-- AbilityPicker.Selected.Name  
+When `Type` == `'Ability'`
+- Name  
 
 ## TODO
 
