@@ -203,14 +203,14 @@ local function ResetFilter()
     AbilityPicker.FilteredResults = {}
 end
 
-local function FilterCatSubCatTree(tbl)
+local function FilterCatSubCatTree(tbl, filter)
     local filteredAbilities = {Categories={}}
     for _,category in ipairs(tbl.Categories) do
         local abilityCategory = tbl[category]
         for _,subCategory in ipairs(abilityCategory.SubCategories) do
             local abilitySubCategory = abilityCategory[subCategory]
             for _,ability in ipairs(abilitySubCategory) do
-                if ability.Name:lower():find(AbilityPicker.Filter:lower()) then
+                if ability.Name:lower():find(filter) then
                     if not filteredAbilities[category] then table.insert(filteredAbilities.Categories, category) end
                     filteredAbilities[category] = filteredAbilities[category] or {SubCategories={}}
                     if not filteredAbilities[category][subCategory] then table.insert(filteredAbilities[category].SubCategories, subCategory) end
@@ -223,21 +223,21 @@ local function FilterCatSubCatTree(tbl)
     return filteredAbilities
 end
 
-local function FilterSpells()
-    local filteredSpells = FilterCatSubCatTree(AbilityPicker.Spells)
+local function FilterSpells(filter)
+    local filteredSpells = FilterCatSubCatTree(AbilityPicker.Spells, filter)
     AbilityPicker.FilteredResults.Spells = filteredSpells
 end
 
-local function FilterDiscs()
-    local filteredDiscs = FilterCatSubCatTree(AbilityPicker.CombatAbilities)
+local function FilterDiscs(filter)
+    local filteredDiscs = FilterCatSubCatTree(AbilityPicker.CombatAbilities, filter)
     AbilityPicker.FilteredResults.CombatAbilities = filteredDiscs
 end
 
-local function FilterAAs()
+local function FilterAAs(filter)
     local filteredAAs = {Types={}}
     for _,type in ipairs(AbilityPicker.AltAbilities.Types) do
         for _,altAbility in ipairs(AbilityPicker.AltAbilities[type]) do
-            if altAbility.Name:lower():find(AbilityPicker.Filter:lower()) then
+            if altAbility.Name:lower():find(filter) then
                 if not filteredAAs[type] then table.insert(filteredAAs.Types, type) end
                 filteredAAs[type] = filteredAAs[type] or {}
                 table.insert(filteredAAs[type], altAbility)
@@ -247,20 +247,20 @@ local function FilterAAs()
     AbilityPicker.FilteredResults.AltAbilities = filteredAAs
 end
 
-local function FilterAbilities()
+local function FilterAbilities(filter)
     local filteredAbilities = {}
     for _,ability in ipairs(AbilityPicker.Abilities) do
-        if ability.Name:lower():find(AbilityPicker.Filter:lower()) then
+        if ability.Name:lower():find(filter) then
             table.insert(filteredAbilities, ability)
         end
     end
     AbilityPicker.FilteredResults.Abilities = filteredAbilities
 end
 
-local function FilterItems()
+local function FilterItems(filter)
     local filteredItems = {}
     for _,item in ipairs(AbilityPicker.Items) do
-        if item.Name:lower():find(AbilityPicker.Filter:lower()) then
+        if item.Name:lower():find(filter) then
             table.insert(filteredItems, item)
         end
     end
@@ -378,11 +378,12 @@ local function DrawSearchFilter()
     if filter:len() >= 3 and AbilityPicker.Filter ~= filter then
         AbilityPicker.Filter = filter
         ResetFilter()
-        FilterSpells()
-        FilterDiscs()
-        FilterAAs()
-        FilterItems()
-        FilterAbilities()
+        filter = filter:lower()
+        FilterSpells(filter)
+        FilterDiscs(filter)
+        FilterAAs(filter)
+        FilterItems(filter)
+        FilterAbilities(filter)
     else
         if filter:len() < 3 and AbilityPicker.Filter ~= filter then ResetFilter() end
         AbilityPicker.Filter = filter
