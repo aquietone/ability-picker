@@ -18,7 +18,9 @@ AbilityPicker provides a UI for selecting abilities, such as for configuring wha
 local AbilityPicker = require('AbilityPicker')
 AbilityPicker.InitializeAbilities()
 
--- Somewhere during ImGui callback execution:
+-- Somewhere during ImGui callback execution, prompt to open the ability picker:
+if ImGui.Button('Open Ability Picker') then AbilityPicker.SetOpen() end
+-- Somewhere during ImGui callback execution, draw the ability picker window:
 AbilityPicker.DrawAbilityPicker()
 
 -- Somewhere in main script execution:
@@ -26,6 +28,11 @@ if AbilityPicker.Selected then
     -- Process the item which was selected by the picker
     printf('Selected %s: %s', AbilityPicker.Selected.Type, AbilityPicker.Selected.Name)
     AbilityPicker.ClearSelection()
+end
+
+-- In main loop, reload abilities if selected by user
+while true do
+    AbilityPicker.Reload()
 end
 ```
 

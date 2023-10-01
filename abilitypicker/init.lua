@@ -14,7 +14,7 @@ local function updateImGui()
     isOpen, shouldDraw = ImGui.Begin('AbilityPickerSample', isOpen)
     if shouldDraw then
         if ImGui.Button('Open AbilityPicker') then
-            AbilityPicker.Open, AbilityPicker.Draw = true, true
+            AbilityPicker.SetOpen()
         end
         if AbilityPicker.Selected then
             local selected = AbilityPicker.Selected or {}
@@ -40,4 +40,5 @@ mq.imgui.init('AbilityPickerSample', updateImGui)
 
 while not terminate do
     mq.delay(1000)
+    AbilityPicker.Reload()
 end

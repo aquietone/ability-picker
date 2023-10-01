@@ -8,6 +8,7 @@
     AbilityPicker.InitializeAbilities()
 
     -- Somewhere during ImGui callback execution:
+    if ImGui.Button('Open Ability Picker') then AbilityPicker.SetOpen() end
     AbilityPicker.DrawAbilityPicker()
 
     -- Somewhere in main script execution:
@@ -15,6 +16,11 @@
         -- Process the item which was selected by the picker
         printf('Selected %s: %s', Selected.Type, Selected.Name)
         AbilityPicker.ClearSelection()
+    end
+
+    -- In main loop, reload abilities if selected by user
+    while true do
+        AbilityPicker.Reload()
     end
 
     When an ability is selected, AbilityPicker.Selected will contain the following values:
@@ -186,6 +192,7 @@ local function InitItems()
     table.sort(AbilityPicker.Items, function(a, b) return a.Name < b.Name end)
 end
 
+--mq.event('NewSpellMemmed', '#*#You have finished scribing #1#.', NewSpellMemmed)
 function AbilityPicker.InitializeAbilities()
     InitSpellTree()
     InitAATree()
@@ -194,12 +201,36 @@ function AbilityPicker.InitializeAbilities()
     InitItems()
 end
 
-local function SelectAbility(type, id, name, rankName, level, spellName)
-    AbilityPicker.Selected = {ID=id, Type=type, Name=name, RankName=rankName, Level=level, SpellName=spellName}
-    AbilityPicker.Open = false
-    AbilityPicker.Draw = false
-    AbilityPicker.Filter = ''
-    AbilityPicker.FilteredResults = {}
+function AbilityPicker.Reload()
+    if AbilityPicker.ReloadAll then
+        AbilityPicker.Spells = {Categories={}}
+        AbilityPicker.AltAbilities = {Types={}}
+        AbilityPicker.CombatAbilities = {Categories={}}
+        AbilityPicker.Abilities = {}
+        AbilityPicker.Items = {}
+        AbilityPicker.InitializeAbilities()
+        AbilityPicker.ReloadAll = false
+    elseif AbilityPicker.ReloadSpells then
+        AbilityPicker.Spells = {Categories={}}
+        InitSpellTree()
+        AbilityPicker.ReloadSpells = false
+    elseif AbilityPicker.ReloadDiscs then
+        AbilityPicker.CombatAbilities = {Categories={}}
+        InitDiscTree()
+        AbilityPicker.ReloadDiscs = false
+    elseif AbilityPicker.ReloadAAs then
+        AbilityPicker.AltAbilities = {Types={}}
+        InitAATree()
+        AbilityPicker.ReloadAAs = false
+    elseif AbilityPicker.ReloadItems then
+        AbilityPicker.Items = {}
+        InitItems()
+        AbilityPicker.ReloadItems = false
+    elseif AbilityPicker.ReloadAbilities then
+        AbilityPicker.Abilities = {}
+        InitAbilityTree()
+        AbilityPicker.ReloadAbilities = false
+    end
 end
 
 local function ResetFilter()
@@ -296,6 +327,14 @@ local function SetTextColor(ability)
     end
 end
 
+local function SelectAbility(type, id, name, rankName, level, spellName)
+    AbilityPicker.Selected = {ID=id, Type=type, Name=name, RankName=rankName, Level=level, SpellName=spellName}
+    AbilityPicker.Open = false
+    AbilityPicker.Draw = false
+    AbilityPicker.Filter = ''
+    AbilityPicker.FilteredResults = {}
+end
+
 local function DrawCatSubCatTree(tbl, type)
     for _,category in ipairs(tbl.Categories) do
         if ImGui.TreeNode(category) then
@@ -325,6 +364,13 @@ local function DrawSpellTree(spells)
     if ImGui.TreeNode('Spells') then
         DrawCatSubCatTree(spells, 'Spell')
         ImGui.TreePop()
+    else
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload Spells') then
+                AbilityPicker.ReloadSpells = true
+            end
+            ImGui.EndPopup()
+        end
     end
 end
 
@@ -346,13 +392,27 @@ local function DrawAATree(altAbilities)
             end
         end
         ImGui.TreePop()
+    else
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload Alternate Abilities') then
+                AbilityPicker.ReloadAAs = true
+            end
+            ImGui.EndPopup()
+        end
     end
 end
 
 local function DrawDiscTree(discs)
-    if ImGui.TreeNode('Combat Disciplines') then
+    if ImGui.TreeNode('Combat Abilities') then
         DrawCatSubCatTree(discs, 'Disc')
         ImGui.TreePop()
+    else
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload Combat Abilities') then
+                AbilityPicker.ReloadDiscs = true
+            end
+            ImGui.EndPopup()
+        end
     end
 end
 
@@ -369,6 +429,13 @@ local function DrawItemTree(items)
             if item.TargetType then ImGui.PopStyleColor() end
         end
         ImGui.TreePop()
+    else
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload Items') then
+                AbilityPicker.ReloadItems = true
+            end
+            ImGui.EndPopup()
+        end
     end
 end
 
@@ -382,6 +449,13 @@ local function DrawAbilityTree(abilities)
             if ability.TargetType then ImGui.PopStyleColor() end
         end
         ImGui.TreePop()
+    else
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload Abilities') then
+                AbilityPicker.ReloadAbilities = true
+            end
+            ImGui.EndPopup()
+        end
     end
 end
 
@@ -406,6 +480,12 @@ function AbilityPicker.DrawAbilityPicker()
     if not AbilityPicker.Open then return end
     AbilityPicker.Open, AbilityPicker.Draw = ImGui.Begin('Ability Picker', AbilityPicker.Open, ImGuiWindowFlags.AlwaysAutoResize)
     if AbilityPicker.Draw then
+        if ImGui.BeginPopupContextItem() then
+            if ImGui.MenuItem('Reload All') then
+                AbilityPicker.ReloadAll = true
+            end
+            ImGui.EndPopup()
+        end
         DrawSearchFilter()
         DrawSpellTree(AbilityPicker.FilteredResults.Spells or AbilityPicker.Spells)
         ImGui.Separator()
@@ -418,6 +498,10 @@ function AbilityPicker.DrawAbilityPicker()
         DrawAbilityTree(AbilityPicker.FilteredResults.Abilities or AbilityPicker.Abilities)
     end
     ImGui.End()
+end
+
+function AbilityPicker.SetOpen()
+    AbilityPicker.Open, AbilityPicker.Draw = true, true
 end
 
 function AbilityPicker.ClearSelection()
