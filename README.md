@@ -6,6 +6,7 @@ A sample script is provided to demonstrate how it may be used. Copy `abilitypick
 
 ![](./images/pickerOpen.png) ![](./images/pickerFiltered.png)  
 ![](./images/pickerFresh.png) ![](./images/pickerSelected.png)  
+![](./images/pickerItemsOnly.png)  
 
 ## Overview
 
@@ -16,23 +17,25 @@ AbilityPicker provides a UI for selecting abilities, such as for configuring wha
 ```lua
 -- Somewhere in main script execution:
 local AbilityPicker = require('AbilityPicker')
-AbilityPicker.InitializeAbilities()
+local picker = AbilityPicker.new() -- optionally takes a table of ability types to display
+-- local picker = AbilityPicker.new({'Item','AA','Spell','Skill','CombatAbility'})
+picker:InitializeAbilities()
 
 -- Somewhere during ImGui callback execution, prompt to open the ability picker:
-if ImGui.Button('Open Ability Picker') then AbilityPicker.SetOpen() end
+if ImGui.Button('Open Ability Picker') then picker:SetOpen() end
 -- Somewhere during ImGui callback execution, draw the ability picker window:
-AbilityPicker.DrawAbilityPicker()
+picker:DrawAbilityPicker()
 
 -- Somewhere in main script execution:
-if AbilityPicker.Selected then
+if picker.Selected then
     -- Process the item which was selected by the picker
-    printf('Selected %s: %s', AbilityPicker.Selected.Type, AbilityPicker.Selected.Name)
-    AbilityPicker.ClearSelection()
+    printf('Selected %s: %s', picker.Selected.Type, picker.Selected.Name)
+    picker:ClearSelection()
 end
 
 -- In main loop, reload abilities if selected by user
 while true do
-    AbilityPicker.Reload()
+    picker:Reload()
 end
 ```
 
@@ -61,7 +64,7 @@ When `Type` == `'Item'`
 - Name
 - SpellName  
 
-When `Type` == `'Ability'`
+When `Type` == `'Skill'`
 - ID
 - Name  
 

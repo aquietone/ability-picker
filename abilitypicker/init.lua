@@ -8,16 +8,18 @@ local AbilityPicker = require('AbilityPicker')
 local terminate = false
 local isOpen, shouldDraw = true, true
 
+local picker = AbilityPicker.new({'Item'})
+
 local function updateImGui()
     if not isOpen then return end
 
     isOpen, shouldDraw = ImGui.Begin('AbilityPickerSample', isOpen)
     if shouldDraw then
         if ImGui.Button('Open AbilityPicker') then
-            AbilityPicker.SetOpen()
+            picker:SetOpen()
         end
-        if AbilityPicker.Selected then
-            local selected = AbilityPicker.Selected or {}
+        if picker.Selected then
+            local selected = picker.Selected or {}
             if selected.Type == 'Spell' or selected.Type == 'Disc' then
                 ImGui.Text('Selected %s:\nID=%s\nName=%s\nRankName=%s\nLevel=%s', selected.Type, selected.ID, selected.Name, selected.RankName, selected.Level)
             elseif selected.Type == 'Item' then
@@ -26,19 +28,19 @@ local function updateImGui()
                 ImGui.Text('Selected %s:\nID=%s\n%s', selected.Type, selected.ID, selected.Name)
             end
         end
-        if AbilityPicker.Selected and ImGui.Button('Clear Selection') then
-            AbilityPicker.ClearSelection()
+        if picker.Selected and ImGui.Button('Clear Selection') then
+            picker:ClearSelection()
         end
     end
     ImGui.End()
-    AbilityPicker.DrawAbilityPicker()
+    picker:DrawAbilityPicker()
 end
 
-AbilityPicker.InitializeAbilities()
+picker:InitializeAbilities()
 
 mq.imgui.init('AbilityPickerSample', updateImGui)
 
 while not terminate do
     mq.delay(1000)
-    AbilityPicker.Reload()
+    picker:Reload()
 end

@@ -5,22 +5,24 @@
     Usage:
     -- Somewhere in main script execution:
     local AbilityPicker = require('AbilityPicker')
-    AbilityPicker.InitializeAbilities()
+    local picker = AbilityPicker.new() -- optionally takes a table of ability types to display
+    -- local picker = AbilityPicker.new({'Item','Spell','AA','CombatAbility','Skill'})
+    picker:InitializeAbilities()
 
     -- Somewhere during ImGui callback execution:
-    if ImGui.Button('Open Ability Picker') then AbilityPicker.SetOpen() end
-    AbilityPicker.DrawAbilityPicker()
+    if ImGui.Button('Open Ability Picker') then picker:SetOpen() end
+    picker:DrawAbilityPicker()
 
     -- Somewhere in main script execution:
-    if AbilityPicker.Selected then
+    if picker.Selected then
         -- Process the item which was selected by the picker
-        printf('Selected %s: %s', Selected.Type, Selected.Name)
-        AbilityPicker.ClearSelection()
+        printf('Selected %s: %s', picker.Selected.Type, picker.Selected.Name)
+        picker:ClearSelection()
     end
 
     -- In main loop, reload abilities if selected by user
     while true do
-        AbilityPicker.Reload()
+        picker.Reload()
     end
 
     When an ability is selected, AbilityPicker.Selected will contain the following values:
@@ -32,7 +34,7 @@
         - ID, Name
     - Type = 'Item'
         - ID, Name, SpellName
-    - Type = 'Ability'
+    - Type = 'Skill'
         - ID, Name
 ]]
 
@@ -41,23 +43,35 @@ local mq = require('mq')
 ---@type ImGui
 require('ImGui')
 
-local AbilityPicker = {
-    Open = false,
-    Draw = false,
-    Spells = {Categories={}},
-    AltAbilities = {Types={}},
-    CombatAbilities = {Categories={}},
-    Abilities = {},
-    Items = {},
-    Selected = nil,
-    Filter = '',
-    FilteredResults = {}
-}
-
+local allTypes = {Spell=true,AA=true,CombatAbility=true,Item=true,Skill=true}
 local animSpellIcons = mq.FindTextureAnimation('A_SpellIcons')
 local animItems = mq.FindTextureAnimation('A_DragItem')
-
 local aaTypes = {'General','Archtype','Class','Special'}
+
+local AbilityPicker = {}
+AbilityPicker.__index = AbilityPicker
+
+function AbilityPicker.new(types)
+    local newPicker = {
+        Open = false,
+        Draw = false,
+        Spells = {Categories={}},
+        AltAbilities = {Types={}},
+        CombatAbilities = {Categories={}},
+        Abilities = {},
+        Items = {},
+        Selected = nil,
+        Filter = '',
+        FilteredResults = {},
+        Types = {},
+    }
+    if types then
+        for _,abilityType in ipairs(types) do newPicker.Types[abilityType] = true end
+    else
+        newPicker.Types = allTypes
+    end
+    return setmetatable(newPicker, AbilityPicker)
+end
 
 local function SortMap(map)
     -- sort categories and subcategories alphabetically, abilities by level
@@ -74,42 +88,42 @@ local function SortMap(map)
     end
 end
 
-local function AddSpellToMap(spell)
+local function AddSpellToMap(picker, spell)
     local category = spell.Category()
     local subCategory = spell.Subcategory()
-    if not AbilityPicker.Spells[category] then
-        AbilityPicker.Spells[category] = {SubCategories={}}
-        table.insert(AbilityPicker.Spells.Categories, category)
+    if not picker.Spells[category] then
+        picker.Spells[category] = {SubCategories={}}
+        table.insert(picker.Spells.Categories, category)
     end
-    if not AbilityPicker.Spells[category][subCategory] then
-        AbilityPicker.Spells[category][subCategory] = {}
-        table.insert(AbilityPicker.Spells[category].SubCategories, subCategory)
+    if not picker.Spells[category][subCategory] then
+        picker.Spells[category][subCategory] = {}
+        table.insert(picker.Spells[category].SubCategories, subCategory)
     end
     local name = spell.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.Spells[category][subCategory], {ID=spell.ID(), Level=spell.Level(), Name=name, RankName=spell.Name(), TargetType=spell.TargetType(), Icon=spell.SpellIcon()})
+    table.insert(picker.Spells[category][subCategory], {ID=spell.ID(), Level=spell.Level(), Name=name, RankName=spell.Name(), TargetType=spell.TargetType(), Icon=spell.SpellIcon()})
 end
 
-local function InitSpellTree()
+local function InitSpellTree(picker)
     -- Build spell tree for picking spells
     for spellIter=1,1120 do
         local spell = mq.TLO.Me.Book(spellIter)
         if spell() then
-            AddSpellToMap(spell)
+            AddSpellToMap(picker, spell)
         end
     end
-    SortMap(AbilityPicker.Spells)
+    SortMap(picker.Spells)
 end
 
-local function AddAAToMap(aa)
+local function AddAAToMap(picker, aa)
     local type = aaTypes[aa.Type()]
-    if not AbilityPicker.AltAbilities[type] then
-        AbilityPicker.AltAbilities[type] = {}
-        table.insert(AbilityPicker.AltAbilities.Types, type)
+    if not picker.AltAbilities[type] then
+        picker.AltAbilities[type] = {}
+        table.insert(picker.AltAbilities.Types, type)
     end
-    table.insert(AbilityPicker.AltAbilities[type], {ID=aa.ID(), Name=aa.Name(), TargetType=aa.Spell.TargetType(), Icon=aa.Spell.SpellIcon()})
+    table.insert(picker.AltAbilities[type], {ID=aa.ID(), Name=aa.Name(), TargetType=aa.Spell.TargetType(), Icon=aa.Spell.SpellIcon()})
 end
 
-local function InitAATree()
+local function InitAATree(picker)
     if not mq.TLO.Window("AAWindow")() then return 0 end
 
     local sections = {
@@ -125,116 +139,115 @@ local function InitAATree()
         for i = 0, rows do
             local aaName = control.List(i)
             local aa = mq.TLO.Me.AltAbility(aaName)
-            if aa() and aa.Spell() then AddAAToMap(aa) end
+            if aa() and aa.Spell() then AddAAToMap(picker, aa) end
         end
     end
 
     for _, type in ipairs(aaTypes) do
-        if AbilityPicker.AltAbilities[type] then
-            table.sort(AbilityPicker.AltAbilities[type], function(a, b) return a.Name < b.Name end)
+        if picker.AltAbilities[type] then
+            table.sort(picker.AltAbilities[type], function(a, b) return a.Name < b.Name end)
         end
     end
 end
 
-local function AddDiscToMap(disc)
+local function AddDiscToMap(picker, disc)
     local category = disc.Category()
     local subCategory = disc.Subcategory()
-    if not AbilityPicker.CombatAbilities[category] then
-        AbilityPicker.CombatAbilities[category] = {SubCategories={}}
-        table.insert(AbilityPicker.CombatAbilities.Categories, category)
+    if not picker.CombatAbilities[category] then
+        picker.CombatAbilities[category] = {SubCategories={}}
+        table.insert(picker.CombatAbilities.Categories, category)
     end
-    if not AbilityPicker.CombatAbilities[category][subCategory] then
-        AbilityPicker.CombatAbilities[category][subCategory] = {}
-        table.insert(AbilityPicker.CombatAbilities[category].SubCategories, subCategory)
+    if not picker.CombatAbilities[category][subCategory] then
+        picker.CombatAbilities[category][subCategory] = {}
+        table.insert(picker.CombatAbilities[category].SubCategories, subCategory)
     end
     local name = disc.Name():gsub(' Rk%..*', '')
-    table.insert(AbilityPicker.CombatAbilities[category][subCategory], {ID=disc.ID(), Level=disc.Level(), Name=name, RankName=disc.Name(), TargetType=disc.TargetType(), Icon=disc.SpellIcon()})
+    table.insert(picker.CombatAbilities[category][subCategory], {ID=disc.ID(), Level=disc.Level(), Name=name, RankName=disc.Name(), TargetType=disc.TargetType(), Icon=disc.SpellIcon()})
 end
 
-local function InitDiscTree()
+local function InitDiscTree(picker)
     local discIter = 1
     repeat
         local disc = mq.TLO.Me.CombatAbility(discIter)
         if disc() then
-            AddDiscToMap(disc)
+            AddDiscToMap(picker, disc)
         end
         discIter = discIter + 1
     until mq.TLO.Me.CombatAbility(discIter)() == nil
-    SortMap(AbilityPicker.CombatAbilities)
+    SortMap(picker.CombatAbilities)
 end
 
-local function InitAbilityTree()
+local function InitSkillTree(picker)
     for i=0,100 do
         local ability = mq.TLO.Me.Ability(i)
         if ability() then
-            table.insert(AbilityPicker.Abilities, {ID=i, Name=ability()})
+            table.insert(picker.Abilities, {ID=i, Name=ability()})
         end
     end
-    table.sort(AbilityPicker.Abilities, function(a, b) return a.Name < b.Name end)
+    table.sort(picker.Abilities, function(a, b) return a.Name < b.Name end)
 end
 
-local function InitItems()
+local function InitItems(picker)
     for i=0,32 do
         local item = mq.TLO.Me.Inventory(i)
         if item.Container() > 0 then
             for j=1,item.Container() do
                 local bagItem = item.Item(j)
                 if bagItem() and bagItem.Spell() then
-                    table.insert(AbilityPicker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType(), Icon=bagItem.Icon()})
+                    table.insert(picker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType(), Icon=bagItem.Icon()})
                 end
             end
         else
             if item() and item.Clicky() then
-                table.insert(AbilityPicker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType(), Icon=item.Icon()})
+                table.insert(picker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType(), Icon=item.Icon()})
             end
         end
     end
-    table.sort(AbilityPicker.Items, function(a, b) return a.Name < b.Name end)
+    table.sort(picker.Items, function(a, b) return a.Name < b.Name end)
 end
 
---mq.event('NewSpellMemmed', '#*#You have finished scribing #1#.', NewSpellMemmed)
-function AbilityPicker.InitializeAbilities()
-    InitSpellTree()
-    InitAATree()
-    InitDiscTree()
-    InitAbilityTree()
-    InitItems()
+function AbilityPicker:InitializeAbilities()
+    if self.Types.Spell then InitSpellTree(self) end
+    if self.Types.AA then InitAATree(self) end
+    if self.Types.CombatAbility then InitDiscTree(self) end
+    if self.Types.Skill then InitSkillTree(self) end
+    if self.Types.Item then InitItems(self) end
 end
 
-function AbilityPicker.Reload()
-    if AbilityPicker.ReloadAll then
-        AbilityPicker.Spells = {Categories={}}
-        AbilityPicker.AltAbilities = {Types={}}
-        AbilityPicker.CombatAbilities = {Categories={}}
-        AbilityPicker.Abilities = {}
-        AbilityPicker.Items = {}
-        AbilityPicker.InitializeAbilities()
-        AbilityPicker.ReloadAll = false
-    elseif AbilityPicker.ReloadSpells then
-        AbilityPicker.Spells = {Categories={}}
-        InitSpellTree()
-        AbilityPicker.ReloadSpells = false
-    elseif AbilityPicker.ReloadDiscs then
-        AbilityPicker.CombatAbilities = {Categories={}}
-        InitDiscTree()
-        AbilityPicker.ReloadDiscs = false
-    elseif AbilityPicker.ReloadAAs then
-        AbilityPicker.AltAbilities = {Types={}}
-        InitAATree()
-        AbilityPicker.ReloadAAs = false
-    elseif AbilityPicker.ReloadItems then
-        AbilityPicker.Items = {}
-        InitItems()
-        AbilityPicker.ReloadItems = false
-    elseif AbilityPicker.ReloadAbilities then
-        AbilityPicker.Abilities = {}
-        InitAbilityTree()
-        AbilityPicker.ReloadAbilities = false
+function AbilityPicker:Reload()
+    if self.ReloadAll then
+        self.Spells = {Categories={}}
+        self.AltAbilities = {Types={}}
+        self.CombatAbilities = {Categories={}}
+        self.Abilities = {}
+        self.Items = {}
+        self:InitializeAbilities()
+        self.ReloadAll = false
+    elseif self.ReloadSpells then
+        self.Spells = {Categories={}}
+        InitSpellTree(self)
+        self.ReloadSpells = false
+    elseif self.ReloadDiscs then
+        self.CombatAbilities = {Categories={}}
+        InitDiscTree(self)
+        self.ReloadDiscs = false
+    elseif self.ReloadAAs then
+        self.AltAbilities = {Types={}}
+        InitAATree(self)
+        self.ReloadAAs = false
+    elseif self.ReloadItems then
+        self.Items = {}
+        InitItems(self)
+        self.ReloadItems = false
+    elseif self.ReloadAbilities then
+        self.Abilities = {}
+        InitSkillTree(self)
+        self.ReloadAbilities = false
     end
 end
 
-local function ResetFilter()
-    AbilityPicker.FilteredResults = {}
+local function ResetFilter(picker)
+    picker.FilteredResults = {}
 end
 
 local function FilterCatSubCatTree(tbl, filter)
@@ -257,20 +270,20 @@ local function FilterCatSubCatTree(tbl, filter)
     return filteredAbilities
 end
 
-local function FilterSpells(filter)
-    local filteredSpells = FilterCatSubCatTree(AbilityPicker.Spells, filter)
-    AbilityPicker.FilteredResults.Spells = filteredSpells
+local function FilterSpells(picker, filter)
+    local filteredSpells = FilterCatSubCatTree(picker.Spells, filter)
+    picker.FilteredResults.Spells = filteredSpells
 end
 
-local function FilterDiscs(filter)
-    local filteredDiscs = FilterCatSubCatTree(AbilityPicker.CombatAbilities, filter)
-    AbilityPicker.FilteredResults.CombatAbilities = filteredDiscs
+local function FilterDiscs(picker, filter)
+    local filteredDiscs = FilterCatSubCatTree(picker.CombatAbilities, filter)
+    picker.FilteredResults.CombatAbilities = filteredDiscs
 end
 
-local function FilterAAs(filter)
+local function FilterAAs(picker, filter)
     local filteredAAs = {Types={}}
-    for _,type in ipairs(AbilityPicker.AltAbilities.Types) do
-        for _,altAbility in ipairs(AbilityPicker.AltAbilities[type]) do
+    for _,type in ipairs(picker.AltAbilities.Types) do
+        for _,altAbility in ipairs(picker.AltAbilities[type]) do
             if altAbility.Name:lower():find(filter) then
                 if not filteredAAs[type] then table.insert(filteredAAs.Types, type) end
                 filteredAAs[type] = filteredAAs[type] or {}
@@ -278,27 +291,27 @@ local function FilterAAs(filter)
             end
         end
     end
-    AbilityPicker.FilteredResults.AltAbilities = filteredAAs
+    picker.FilteredResults.AltAbilities = filteredAAs
 end
 
-local function FilterAbilities(filter)
+local function FilterSkills(picker, filter)
     local filteredAbilities = {}
-    for _,ability in ipairs(AbilityPicker.Abilities) do
+    for _,ability in ipairs(picker.Abilities) do
         if ability.Name:lower():find(filter) then
             table.insert(filteredAbilities, ability)
         end
     end
-    AbilityPicker.FilteredResults.Abilities = filteredAbilities
+    picker.FilteredResults.Abilities = filteredAbilities
 end
 
-local function FilterItems(filter)
+local function FilterItems(picker, filter)
     local filteredItems = {}
-    for _,item in ipairs(AbilityPicker.Items) do
+    for _,item in ipairs(picker.Items) do
         if item.Name:lower():find(filter) then
             table.insert(filteredItems, item)
         end
     end
-    AbilityPicker.FilteredResults.Items = filteredItems
+    picker.FilteredResults.Items = filteredItems
 end
 
 -- Color spell names in spell picker similar to the spell bar context menus
@@ -327,15 +340,15 @@ local function SetTextColor(ability)
     end
 end
 
-local function SelectAbility(type, id, name, rankName, level, spellName)
-    AbilityPicker.Selected = {ID=id, Type=type, Name=name, RankName=rankName, Level=level, SpellName=spellName}
-    AbilityPicker.Open = false
-    AbilityPicker.Draw = false
-    AbilityPicker.Filter = ''
-    AbilityPicker.FilteredResults = {}
+local function SelectAbility(picker, type, id, name, rankName, level, spellName)
+    picker.Selected = {ID=id, Type=type, Name=name, RankName=rankName, Level=level, SpellName=spellName}
+    picker.Open = false
+    picker.Draw = false
+    picker.Filter = ''
+    picker.FilteredResults = {}
 end
 
-local function DrawCatSubCatTree(tbl, type)
+local function DrawCatSubCatTree(picker, tbl, type)
     for _,category in ipairs(tbl.Categories) do
         if ImGui.TreeNode(category) then
             local abilityCategory = tbl[category]
@@ -348,7 +361,7 @@ local function DrawCatSubCatTree(tbl, type)
                         ImGui.SameLine()
                         if ability.TargetType then SetTextColor(ability) end
                         if ImGui.Selectable(string.format('%s - %s', ability.Level, ability.Name), false) then
-                            SelectAbility(type, ability.ID, ability.Name, ability.RankName, ability.Level)
+                            SelectAbility(picker, type, ability.ID, ability.Name, ability.RankName, ability.Level)
                         end
                         if ability.TargetType then ImGui.PopStyleColor() end
                     end
@@ -360,21 +373,21 @@ local function DrawCatSubCatTree(tbl, type)
     end
 end
 
-local function DrawSpellTree(spells)
+local function DrawSpellTree(picker, spells)
     if ImGui.TreeNode('Spells') then
-        DrawCatSubCatTree(spells, 'Spell')
+        DrawCatSubCatTree(picker, spells, 'Spell')
         ImGui.TreePop()
     else
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload Spells') then
-                AbilityPicker.ReloadSpells = true
+                picker.ReloadSpells = true
             end
             ImGui.EndPopup()
         end
     end
 end
 
-local function DrawAATree(altAbilities)
+local function DrawAATree(picker, altAbilities)
     if ImGui.TreeNode('Alternate Abilities') then
         for _,type in ipairs(altAbilities.Types) do
             if ImGui.TreeNode(type) then
@@ -384,7 +397,7 @@ local function DrawAATree(altAbilities)
                     ImGui.SameLine()
                     if altAbility.TargetType then SetTextColor(altAbility) end
                     if ImGui.Selectable(altAbility.Name, false) then
-                        SelectAbility('AA', altAbility.ID, altAbility.Name)
+                        SelectAbility(picker, 'AA', altAbility.ID, altAbility.Name)
                     end
                     if altAbility.TargetType then ImGui.PopStyleColor() end
                 end
@@ -395,28 +408,28 @@ local function DrawAATree(altAbilities)
     else
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload Alternate Abilities') then
-                AbilityPicker.ReloadAAs = true
+                picker.ReloadAAs = true
             end
             ImGui.EndPopup()
         end
     end
 end
 
-local function DrawDiscTree(discs)
+local function DrawDiscTree(picker, discs)
     if ImGui.TreeNode('Combat Abilities') then
         DrawCatSubCatTree(discs, 'Disc')
         ImGui.TreePop()
     else
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload Combat Abilities') then
-                AbilityPicker.ReloadDiscs = true
+                picker.ReloadDiscs = true
             end
             ImGui.EndPopup()
         end
     end
 end
 
-local function DrawItemTree(items)
+local function DrawItemTree(picker, items)
     if ImGui.TreeNode('Items') then
         for _,item in ipairs(items) do
             animItems:SetTextureCell(item.Icon-500)
@@ -424,7 +437,7 @@ local function DrawItemTree(items)
             ImGui.SameLine()
             if item.TargetType then SetTextColor(item) end
             if ImGui.Selectable(string.format('%s - %s', item.Name, item.SpellName), false) then
-                SelectAbility('Item', item.ID, item.Name, nil, nil, item.SpellName)
+                SelectAbility(picker, 'Item', item.ID, item.Name, nil, nil, item.SpellName)
             end
             if item.TargetType then ImGui.PopStyleColor() end
         end
@@ -432,19 +445,19 @@ local function DrawItemTree(items)
     else
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload Items') then
-                AbilityPicker.ReloadItems = true
+                picker.ReloadItems = true
             end
             ImGui.EndPopup()
         end
     end
 end
 
-local function DrawAbilityTree(abilities)
+local function DrawSkillTree(picker, abilities)
     if ImGui.TreeNode('Abilities') then
         for _,ability in ipairs(abilities) do
             if ability.TargetType then SetTextColor(ability) end
             if ImGui.Selectable(ability.Name, false) then
-                SelectAbility('Ability', ability.ID, ability.Name)
+                SelectAbility(picker, 'Ability', ability.ID, ability.Name)
             end
             if ability.TargetType then ImGui.PopStyleColor() end
         end
@@ -452,60 +465,70 @@ local function DrawAbilityTree(abilities)
     else
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload Abilities') then
-                AbilityPicker.ReloadAbilities = true
+                picker.ReloadAbilities = true
             end
             ImGui.EndPopup()
         end
     end
 end
 
-local function DrawSearchFilter()
-    local filter = ImGui.InputTextWithHint('##Filter', 'Search Abilities...', AbilityPicker.Filter)
-    if filter:len() >= 3 and AbilityPicker.Filter ~= filter then
-        AbilityPicker.Filter = filter
-        ResetFilter()
+local function DrawSearchFilter(picker)
+    local filter = ImGui.InputTextWithHint('##Filter', 'Search Abilities...', picker.Filter)
+    if filter:len() >= 3 and picker.Filter ~= filter then
+        picker.Filter = filter
+        ResetFilter(picker)
         filter = filter:lower()
-        FilterSpells(filter)
-        FilterDiscs(filter)
-        FilterAAs(filter)
-        FilterItems(filter)
-        FilterAbilities(filter)
+        if picker.Types.Spell then FilterSpells(picker, filter) end
+        if picker.Types.CombatAbility then FilterDiscs(picker, filter) end
+        if picker.Types.AA then FilterAAs(picker, filter) end
+        if picker.Types.Item then FilterItems(picker, filter) end
+        if picker.Types.Skill then FilterSkills(picker, filter) end
     else
-        if filter:len() < 3 and AbilityPicker.Filter ~= filter then ResetFilter() end
-        AbilityPicker.Filter = filter
+        if filter:len() < 3 and picker.Filter ~= filter then ResetFilter(picker) end
+        picker.Filter = filter
     end
 end
 
-function AbilityPicker.DrawAbilityPicker()
-    if not AbilityPicker.Open then return end
-    AbilityPicker.Open, AbilityPicker.Draw = ImGui.Begin('Ability Picker', AbilityPicker.Open, ImGuiWindowFlags.AlwaysAutoResize)
-    if AbilityPicker.Draw then
+function AbilityPicker:DrawAbilityPicker()
+    if not self.Open then return end
+    self.Open, self.Draw = ImGui.Begin('Ability Picker', self.Open, ImGuiWindowFlags.AlwaysAutoResize)
+    if self.Draw then
         if ImGui.BeginPopupContextItem() then
             if ImGui.MenuItem('Reload All') then
-                AbilityPicker.ReloadAll = true
+                self.ReloadAll = true
             end
             ImGui.EndPopup()
         end
-        DrawSearchFilter()
-        DrawSpellTree(AbilityPicker.FilteredResults.Spells or AbilityPicker.Spells)
-        ImGui.Separator()
-        DrawAATree(AbilityPicker.FilteredResults.AltAbilities or AbilityPicker.AltAbilities)
-        ImGui.Separator()
-        DrawDiscTree(AbilityPicker.FilteredResults.CombatAbilities or AbilityPicker.CombatAbilities)
-        ImGui.Separator()
-        DrawItemTree(AbilityPicker.FilteredResults.Items or AbilityPicker.Items)
-        ImGui.Separator()
-        DrawAbilityTree(AbilityPicker.FilteredResults.Abilities or AbilityPicker.Abilities)
+        DrawSearchFilter(self)
+        if self.Types.Spell then
+            DrawSpellTree(self, self.FilteredResults.Spells or self.Spells)
+            ImGui.Separator()
+        end
+        if self.Types.AA then
+            DrawAATree(self, self.FilteredResults.AltAbilities or self.AltAbilities)
+            ImGui.Separator()
+        end
+        if self.Types.CombatAbility then
+            DrawDiscTree(self, self.FilteredResults.CombatAbilities or self.CombatAbilities)
+            ImGui.Separator()
+        end
+        if self.Types.Item then
+            DrawItemTree(self, self.FilteredResults.Items or self.Items)
+            ImGui.Separator()
+        end
+        if self.Types.Skill then
+            DrawSkillTree(self, self.FilteredResults.Abilities or self.Abilities)
+        end
     end
     ImGui.End()
 end
 
-function AbilityPicker.SetOpen()
-    AbilityPicker.Open, AbilityPicker.Draw = true, true
+function AbilityPicker:SetOpen()
+    self.Open, self.Draw = true, true
 end
 
-function AbilityPicker.ClearSelection()
-    AbilityPicker.Selected = nil
+function AbilityPicker:ClearSelection()
+    self.Selected = nil
 end
 
 return AbilityPicker
