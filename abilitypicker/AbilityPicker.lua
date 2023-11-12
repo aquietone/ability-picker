@@ -417,7 +417,7 @@ end
 
 local function DrawDiscTree(picker, discs)
     if ImGui.TreeNode('Combat Abilities') then
-        DrawCatSubCatTree(discs, 'Disc')
+        DrawCatSubCatTree(picker, discs, 'Disc')
         ImGui.TreePop()
     else
         if ImGui.BeginPopupContextItem() then
