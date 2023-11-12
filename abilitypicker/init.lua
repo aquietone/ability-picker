@@ -8,7 +8,8 @@ local AbilityPicker = require('AbilityPicker')
 local terminate = false
 local isOpen, shouldDraw = true, true
 
-local picker = AbilityPicker.new({'Item'})
+local picker = AbilityPicker.new()
+--local picker = AbilityPicker.new({'Item'})
 
 local function updateImGui()
     if not isOpen then return end
