@@ -190,15 +190,15 @@ end
 local function InitItems(picker)
     for i=0,32 do
         local item = mq.TLO.Me.Inventory(i)
-        if item.Container() > 0 then
-            for j=1,item.Container() do
-                local bagItem = item.Item(j)
-                if bagItem() and bagItem.Spell() then
-                    table.insert(picker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType(), Icon=bagItem.Icon()})
+        if item() then
+            if item.Container() > 0 then
+                for j=1,item.Container() do
+                    local bagItem = item.Item(j)
+                    if bagItem() and bagItem.Spell() then
+                        table.insert(picker.Items, {ID=bagItem.ID(), Name=bagItem.Name(), SpellName=bagItem.Clicky(), TargetType=bagItem.Clicky.Spell.TargetType(), Icon=bagItem.Icon()})
+                    end
                 end
-            end
-        else
-            if item() and item.Clicky() then
+            elseif item.Clicky() then
                 table.insert(picker.Items, {ID=item.ID(), Name=item.Name(), SpellName=item.Clicky(), TargetType=item.Clicky.Spell.TargetType(), Icon=item.Icon()})
             end
         end
