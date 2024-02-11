@@ -1,7 +1,5 @@
 -- Sample script using AbilityPicker.lua
---- @type Mq
 local mq = require('mq')
---- @type ImGui
 require('ImGui')
 local AbilityPicker = require('AbilityPicker')
 

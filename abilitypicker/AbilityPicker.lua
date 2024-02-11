@@ -38,9 +38,7 @@
         - ID, Name
 ]]
 
----@type Mq
 local mq = require('mq')
----@type ImGui
 require('ImGui')
 
 local allTypes = {Spell=true,AA=true,CombatAbility=true,Item=true,Skill=true}
@@ -71,6 +69,17 @@ function AbilityPicker.new(types)
         newPicker.Types = allTypes
     end
     return setmetatable(newPicker, AbilityPicker)
+end
+
+function AbilityPicker:UpdateTypes(types)
+    if types then
+        self.Types = {}
+        for _,abilityType in ipairs(types) do
+            self.Types[abilityType] = true
+        end
+    else
+        self.Types = allTypes
+    end
 end
 
 local function SortMap(map)
