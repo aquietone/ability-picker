@@ -187,10 +187,10 @@ local function InitDiscTree(picker)
 end
 
 local function InitSkillTree(picker)
-    for i=0,100 do
-        local ability = mq.TLO.Me.Ability(i)
-        if ability() then
-            table.insert(picker.Abilities, {ID=i, Name=ability()})
+    for i=0,125 do
+        local ability = mq.TLO.Skill(i)
+        if ability() and ability.Activated() and mq.TLO.Me.Skill(ability.Name())() > 0 then
+            table.insert(picker.Abilities, {ID=i, Name=ability.Name()})
         end
     end
     table.sort(picker.Abilities, function(a, b) return a.Name < b.Name end)
